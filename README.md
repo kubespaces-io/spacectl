@@ -2,6 +2,8 @@
 
 A command-line tool for managing Kubespaces resources including organizations, projects, and tenants.
 
+It will be available as a brew package.
+
 ## Features
 
 - **Authentication**: Login, register, and manage authentication tokens

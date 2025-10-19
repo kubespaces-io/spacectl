@@ -108,17 +108,17 @@ capture_project_id() {
             if [ -n "$project_id" ] && [ "$project_id" != "null" ]; then
                 TEST_PROJECT_ID="$project_id"
                 if [ "$DEBUG_MODE" = "true" ]; then
-                    print_status "SUCCESS" "Captured project ID via fallback: $TEST_PROJECT_ID"
+                    print_status "SUCCESS" "Captured project ID: $TEST_PROJECT_ID"
                 fi
                 return 0
             fi
         fi
     fi
-    
+
     print_status "ERROR" "Failed to capture project ID for: $project_name"
     if [ "$DEBUG_MODE" = "true" ]; then
-        print_status "ERROR" "Project get output:"
-        echo "$output"
+        print_status "ERROR" "Project list output:"
+        echo "$project_list_output"
         print_status "ERROR" "Available projects in organization '$org_name':"
         ./bin/spacectl project list --org-name "$org_name" --output json 2>/dev/null | jq -r '.[] | "\(.project.name) (\(.project.id))"' 2>/dev/null || echo "Could not parse project list"
     fi

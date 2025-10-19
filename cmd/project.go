@@ -146,6 +146,7 @@ func runProjectListAll(client *api.Client, projectAPI *api.ProjectAPI, orgAPI *a
 			}
 
 			enhancedProject := map[string]interface{}{
+				"id":           project.ID,
 				"organization": orgMembership.Organization.Name,
 				"name":         project.Name,
 				"role":         orgMembership.Role,

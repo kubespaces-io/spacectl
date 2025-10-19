@@ -243,7 +243,7 @@ wait_for_tenant() {
             else
                 print_status "ERROR" "Project ID '$TEST_PROJECT_ID' not found or invalid"
                 print_status "ERROR" "Available projects:"
-                ./bin/spacectl project list --output json 2>/dev/null | jq -r '.[] | "\(.project.name) (\(.project.id))"' 2>/dev/null || echo "Could not parse project list"
+                ./bin/spacectl project list --output json 2>/dev/null | jq -r '.[] | "\(.name) (\(.id))"' 2>/dev/null || echo "Could not parse project list"
             fi
         fi
         

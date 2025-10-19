@@ -84,9 +84,9 @@ func resolveTenantID(client *api.Client, tenantName, tenantID, projectID string)
 		return "", fmt.Errorf("failed to list tenants in project: %w", err)
 	}
 	for _, t := range tenants {
-		if t.Namespace == tenantName {
+		if t.Name == tenantName {
 			return t.ID, nil
 		}
 	}
-	return "", fmt.Errorf("tenant with namespace %q not found in project", tenantName)
+	return "", fmt.Errorf("tenant with name %q not found in project", tenantName)
 }

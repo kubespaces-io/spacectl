@@ -451,7 +451,7 @@ sleep 2
 # Show all available projects after creation for debugging
 if [ "$DEBUG_MODE" = "true" ]; then
     print_status "INFO" "Available projects in organization '$TEST_ORG_NAME' after creation:"
-    ./bin/spacectl project list --org-name "$TEST_ORG_NAME" --output json 2>/dev/null | jq -r '.[] | "\(.name) (\(.id))"' 2>/dev/null || echo "Could not parse project list"
+    ./bin/spacectl project list --org-name "$TEST_ORG_NAME" --output json 2>/dev/null | jq -r '.[] | "\(.project.name) (\(.project.id))"' 2>/dev/null || echo "Could not parse project list"
 fi
 
 # Capture project ID for tenant creation

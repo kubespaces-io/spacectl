@@ -87,52 +87,16 @@ show_help() {
 capture_project_id() {
     local project_name="$1"
     local org_name="$2"
-    local output
     local project_id
-    
+
     if [ "$DEBUG_MODE" = "true" ]; then
         print_status "INFO" "Capturing project ID for project: $project_name in organization: $org_name"
-    fi
-    
-    # Use project get command to get the project with its ID
-    output=$(./bin/spacectl project get --project-name "$project_name" --org-name "$org_name" --output json 2>/dev/null)
-    local exit_code=$?
-    
-    if [ "$DEBUG_MODE" = "true" ]; then
-        print_status "INFO" "Project get command exit code: $exit_code"
-        print_status "INFO" "Project get command: ./bin/spacectl project get --project-name \"$project_name\" --org-name \"$org_name\" --output json"
-        print_status "INFO" "Project get output:"
-        echo "$output"
-        
-        # Also show what projects are available
+        # Show what projects are available
         print_status "INFO" "All available projects in organization '$org_name':"
         ./bin/spacectl project list --org-name "$org_name" --output json 2>/dev/null | jq -r '.[] | "\(.project.name) (\(.project.id))"' 2>/dev/null || echo "Could not parse project list"
     fi
-    
-    if [ $exit_code -eq 0 ] && [ -n "$output" ]; then
-        # Extract project ID from the JSON output
-        project_id=$(echo "$output" | grep -o "\"id\":\"[^\"]*\"" | head -1 | cut -d'"' -f4)
-        
-        # Try jq if available and grep failed
-        if [ -z "$project_id" ] && command -v jq >/dev/null 2>&1; then
-            project_id=$(echo "$output" | jq -r ".id" 2>/dev/null)
-        fi
-        
-        if [ -n "$project_id" ] && [ "$project_id" != "null" ]; then
-            TEST_PROJECT_ID="$project_id"
-            if [ "$DEBUG_MODE" = "true" ]; then
-                print_status "SUCCESS" "Captured project ID: $TEST_PROJECT_ID"
-                print_status "INFO" "Project details:"
-                echo "$output" | jq -r '. | "Name: \(.name), ID: \(.id), Org: \(.organization_id)"' 2>/dev/null || echo "$output"
-            fi
-            return 0
-        fi
-    fi
-    
-    # Fallback: try to find project by listing all projects and matching by name
-    if [ "$DEBUG_MODE" = "true" ]; then
-        print_status "INFO" "Project get failed, trying fallback method..."
-    fi
+
+    # Find project by listing all projects in the organization and matching by name
     
     local project_list_output
     project_list_output=$(./bin/spacectl project list --org-name "$org_name" --output json 2>/dev/null)

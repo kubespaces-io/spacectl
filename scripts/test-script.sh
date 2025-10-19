@@ -93,18 +93,18 @@ capture_project_id() {
         print_status "INFO" "Capturing project ID for project: $project_name in organization: $org_name"
         # Show what projects are available
         print_status "INFO" "All available projects in organization '$org_name':"
-        ./bin/spacectl project list --org-name "$org_name" --output json 2>/dev/null | jq -r '.[] | "\(.project.name) (\(.project.id))"' 2>/dev/null || echo "Could not parse project list"
+        ./bin/spacectl project list --org-name "$org_name" --output json 2>/dev/null | jq -r '.[] | "\(.name) (\(.id))"' 2>/dev/null || echo "Could not parse project list"
     fi
 
     # Find project by listing all projects in the organization and matching by name
-    
+
     local project_list_output
     project_list_output=$(./bin/spacectl project list --org-name "$org_name" --output json 2>/dev/null)
     local list_exit_code=$?
-    
+
     if [ $list_exit_code -eq 0 ] && [ -n "$project_list_output" ]; then
         if command -v jq >/dev/null 2>&1; then
-            project_id=$(echo "$project_list_output" | jq -r ".[] | select(.project.name == \"$project_name\") | .project.id" 2>/dev/null)
+            project_id=$(echo "$project_list_output" | jq -r ".[] | select(.name == \"$project_name\") | .id" 2>/dev/null)
             if [ -n "$project_id" ] && [ "$project_id" != "null" ]; then
                 TEST_PROJECT_ID="$project_id"
                 if [ "$DEBUG_MODE" = "true" ]; then

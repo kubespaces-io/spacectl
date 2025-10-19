@@ -425,7 +425,7 @@ if capture_project_id "$TEST_PROJECT_NAME" "$TEST_ORG_NAME"; then
     # Verify the project ID is correct by checking if it matches the project we just created
     if [ "$DEBUG_MODE" = "true" ]; then
         print_status "INFO" "Verifying captured project ID matches the created project..."
-        project_details=$(./bin/spacectl project get --project "$TEST_PROJECT_ID" --output json 2>/dev/null)
+        project_details=$(./bin/spacectl project get --project-id "$TEST_PROJECT_ID" --output json 2>/dev/null)
         if [ $? -eq 0 ]; then
             project_name=$(echo "$project_details" | jq -r '.name' 2>/dev/null)
             if [ "$project_name" = "$TEST_PROJECT_NAME" ]; then

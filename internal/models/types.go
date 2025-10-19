@@ -164,7 +164,8 @@ type ResendVerificationRequest struct {
 
 // Request/Response types for CRUD operations
 type CreateOrganizationRequest struct {
-	Name string `json:"name"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
 }
 
 type UpdateOrganizationRequest struct {

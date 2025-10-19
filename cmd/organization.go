@@ -55,13 +55,16 @@ func runOrgList(cmd *cobra.Command, args []string) error {
 var orgCreateCmd = &cobra.Command{
 	Use:   "create <name>",
 	Short: "Create an organization",
-	Long:  `Create a new organization with the specified name.`,
+	Long:  `Create a new organization with the specified name and optional description.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runOrgCreate,
 }
 
+var orgCreateDescription string
+
 func init() {
 	orgCmd.AddCommand(orgCreateCmd)
+	orgCreateCmd.Flags().StringVar(&orgCreateDescription, "description", "", "Organization description")
 }
 
 func runOrgCreate(cmd *cobra.Command, args []string) error {
@@ -77,7 +80,7 @@ func runOrgCreate(cmd *cobra.Command, args []string) error {
 	orgAPI := api.NewOrganizationAPI(client)
 
 	// Create organization
-	org, err := orgAPI.CreateOrganization(name)
+	org, err := orgAPI.CreateOrganization(name, orgCreateDescription)
 	if err != nil {
 		return fmt.Errorf("failed to create organization: %w", err)
 	}

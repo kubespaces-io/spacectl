@@ -194,14 +194,23 @@ func (f *Formatter) convertToRecords(data interface{}) ([]map[string]interface{}
 						"role":    m.Role,
 					})
 				}
+			case models.Organization:
+				records = append(records, map[string]interface{}{
+					"id":   m.ID,
+					"name": m.Name,
+				})
+			case *models.Organization:
+				if m != nil {
+					records = append(records, map[string]interface{}{
+						"id":   m.ID,
+						"name": m.Name,
+					})
+				}
 			case models.Project:
 				records = append(records, map[string]interface{}{
 					"id":              m.ID,
 					"name":            m.Name,
 					"organization_id": m.OrganizationID,
-					"max_tenants":     m.MaxTenants,
-					"max_compute":     m.MaxCompute,
-					"max_memory_gb":   m.MaxMemoryGB,
 				})
 			case *models.Project:
 				if m != nil {
@@ -209,9 +218,6 @@ func (f *Formatter) convertToRecords(data interface{}) ([]map[string]interface{}
 						"id":              m.ID,
 						"name":            m.Name,
 						"organization_id": m.OrganizationID,
-						"max_tenants":     m.MaxTenants,
-						"max_compute":     m.MaxCompute,
-						"max_memory_gb":   m.MaxMemoryGB,
 					})
 				}
 			case map[string]interface{}:
@@ -243,6 +249,19 @@ func (f *Formatter) convertToRecords(data interface{}) ([]map[string]interface{}
 				}}, nil
 			}
 			return nil, nil
+		case models.Organization:
+			return []map[string]interface{}{map[string]interface{}{
+				"id":   m.ID,
+				"name": m.Name,
+			}}, nil
+		case *models.Organization:
+			if m != nil {
+				return []map[string]interface{}{map[string]interface{}{
+					"id":   m.ID,
+					"name": m.Name,
+				}}, nil
+			}
+			return nil, nil
 		case models.ProjectMembership:
 			return []map[string]interface{}{map[string]interface{}{
 				"project": m.Project.Name,
@@ -261,9 +280,6 @@ func (f *Formatter) convertToRecords(data interface{}) ([]map[string]interface{}
 				"id":              m.ID,
 				"name":            m.Name,
 				"organization_id": m.OrganizationID,
-				"max_tenants":     m.MaxTenants,
-				"max_compute":     m.MaxCompute,
-				"max_memory_gb":   m.MaxMemoryGB,
 			}}, nil
 		case *models.Project:
 			if m != nil {
@@ -271,9 +287,6 @@ func (f *Formatter) convertToRecords(data interface{}) ([]map[string]interface{}
 					"id":              m.ID,
 					"name":            m.Name,
 					"organization_id": m.OrganizationID,
-					"max_tenants":     m.MaxTenants,
-					"max_compute":     m.MaxCompute,
-					"max_memory_gb":   m.MaxMemoryGB,
 				}}, nil
 			}
 			return nil, nil

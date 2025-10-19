@@ -77,9 +77,15 @@ func (o *OrganizationAPI) GetOrganization(id string) (*models.Organization, erro
 }
 
 // CreateOrganization creates a new organization
-func (o *OrganizationAPI) CreateOrganization(name string) (*models.Organization, error) {
+func (o *OrganizationAPI) CreateOrganization(name, description string) (*models.Organization, error) {
+	var descPtr *string
+	if description != "" {
+		descPtr = &description
+	}
+
 	req := models.CreateOrganizationRequest{
-		Name: name,
+		Name:        name,
+		Description: descPtr,
 	}
 
 	resp, err := o.client.doRequest("POST", "/api/v1/organizations", req)

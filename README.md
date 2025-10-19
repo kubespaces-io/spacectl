@@ -114,6 +114,9 @@ spacectl org list
 # Create organization
 spacectl org create "My Organization"
 
+# Create organization with description
+spacectl org create "My Organization" --description "A description of the organization"
+
 # Get organization details
 spacectl org get <org-id>
 

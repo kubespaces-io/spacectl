@@ -120,7 +120,7 @@ capture_project_id() {
         print_status "ERROR" "Project list output:"
         echo "$project_list_output"
         print_status "ERROR" "Available projects in organization '$org_name':"
-        ./bin/spacectl project list --org-name "$org_name" --output json 2>/dev/null | jq -r '.[] | "\(.project.name) (\(.project.id))"' 2>/dev/null || echo "Could not parse project list"
+        ./bin/spacectl project list --org-name "$org_name" --output json 2>/dev/null | jq -r '.[] | "\(.name) (\(.id))"' 2>/dev/null || echo "Could not parse project list"
     fi
     return 1
 }

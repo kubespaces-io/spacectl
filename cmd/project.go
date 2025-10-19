@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 
 	"spacectl/internal/api"
 	"spacectl/internal/models"
@@ -106,6 +109,7 @@ func runProjectListForOrg(client *api.Client, projectAPI *api.ProjectAPI, tenant
 		}
 
 		enhancedProject := map[string]interface{}{
+			"id":           project.ID,
 			"name":         project.Name,
 			"role":         "admin", // Default role for org projects
 			"tenant_count": len(tenants),
@@ -395,14 +399,16 @@ var projectDeleteCmd = &cobra.Command{
 }
 
 var (
-	projectDeleteID   string
-	projectDeleteName string
+	projectDeleteID    string
+	projectDeleteName  string
+	projectDeleteForce bool
 )
 
 func init() {
 	projectCmd.AddCommand(projectDeleteCmd)
 	projectDeleteCmd.Flags().StringVar(&projectDeleteID, "id", "", "Project ID")
 	projectDeleteCmd.Flags().StringVar(&projectDeleteName, "name", "", "Project name")
+	projectDeleteCmd.Flags().BoolVar(&projectDeleteForce, "force", false, "Skip confirmation prompt")
 }
 
 func runProjectDelete(cmd *cobra.Command, args []string) error {
@@ -428,8 +434,32 @@ func runProjectDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Get project details for confirmation
+	project, err := projectAPI.GetProject(id)
+	if err != nil {
+		return fmt.Errorf("failed to get project details: %w", err)
+	}
+
+	// Ask for confirmation unless --force is used
+	if !projectDeleteForce {
+		fmt.Printf("Are you sure you want to delete project '%s' (ID: %s)? This action cannot be undone.\n", project.Name, id)
+		fmt.Print("Type 'yes' to confirm: ")
+
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read input: %w", err)
+		}
+
+		response = strings.TrimSpace(strings.ToLower(response))
+		if response != "yes" {
+			fmt.Println("Deletion cancelled.")
+			return nil
+		}
+	}
+
 	// Delete project
-	err := projectAPI.DeleteProject(id)
+	err = projectAPI.DeleteProject(id)
 	if err != nil {
 		return fmt.Errorf("failed to delete project: %w", err)
 	}

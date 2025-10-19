@@ -387,15 +387,22 @@ func runProjectUpdate(cmd *cobra.Command, args []string) error {
 
 // projectDeleteCmd represents the project delete command
 var projectDeleteCmd = &cobra.Command{
-	Use:   "delete <id>",
+	Use:   "delete",
 	Short: "Delete a project",
 	Long:  `Delete a project. This action cannot be undone.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.NoArgs,
 	RunE:  runProjectDelete,
 }
 
+var (
+	projectDeleteID   string
+	projectDeleteName string
+)
+
 func init() {
 	projectCmd.AddCommand(projectDeleteCmd)
+	projectDeleteCmd.Flags().StringVar(&projectDeleteID, "id", "", "Project ID")
+	projectDeleteCmd.Flags().StringVar(&projectDeleteName, "name", "", "Project name")
 }
 
 func runProjectDelete(cmd *cobra.Command, args []string) error {
@@ -404,11 +411,22 @@ func runProjectDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not authenticated. Please run 'spacectl login' first")
 	}
 
-	id := args[0]
-
 	// Create API client
 	client := api.NewClient(cfg.APIURL, cfg, debug)
 	projectAPI := api.NewProjectAPI(client)
+
+	// Resolve project
+	if projectDeleteID != "" && projectDeleteName != "" {
+		return fmt.Errorf("only one of --id or --name is allowed")
+	}
+	id := projectDeleteID
+	if id == "" {
+		var err error
+		id, err = resolveProjectID(client, projectDeleteName, "", "")
+		if err != nil {
+			return err
+		}
+	}
 
 	// Delete project
 	err := projectAPI.DeleteProject(id)

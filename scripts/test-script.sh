@@ -235,15 +235,15 @@ wait_for_tenant() {
         # Verify project ID is correct before checking tenant
         if [ "$DEBUG_MODE" = "true" ] && [ -n "$TEST_PROJECT_ID" ]; then
             print_status "INFO" "Verifying project ID '$TEST_PROJECT_ID' exists..."
-            project_check=$(./bin/spacectl project get --project "$TEST_PROJECT_ID" --output json 2>/dev/null)
+            project_check=$(./bin/spacectl project get --project-id "$TEST_PROJECT_ID" --output json 2>/dev/null)
             project_exit_code=$?
             if [ $project_exit_code -eq 0 ]; then
                 project_name=$(echo "$project_check" | jq -r '.name' 2>/dev/null)
                 print_status "SUCCESS" "Project ID '$TEST_PROJECT_ID' verified - belongs to project '$project_name'"
             else
                 print_status "ERROR" "Project ID '$TEST_PROJECT_ID' not found or invalid"
-                print_status "ERROR" "Available projects:"
-                ./bin/spacectl project list --output json 2>/dev/null | jq -r '.[] | "\(.name) (\(.id))"' 2>/dev/null || echo "Could not parse project list"
+                print_status "ERROR" "Available projects (all organizations):"
+                ./bin/spacectl project list --all --output json 2>/dev/null | jq -r '.[] | "\(.name) (\(.id))"' 2>/dev/null || echo "Could not parse project list"
             fi
         fi
         

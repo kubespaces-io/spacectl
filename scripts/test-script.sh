@@ -221,13 +221,18 @@ check_tenant_exists() {
         fi
     fi
 
-    # If command succeeded, check if status is "ready"
+    # If command succeeded, check if status is "ready" or "failed"
     if [ $exit_code -eq 0 ]; then
         # Extract status from output (last column)
         local status=$(echo "$output" | grep -v "^STATUS" | grep -v "^----" | awk '{print $NF}' | grep -v "^$" | tail -1)
 
         if [ "$DEBUG_MODE" = "true" ]; then
             print_status "INFO" "Tenant status: '$status'"
+        fi
+
+        # Check for failed status
+        if [ "$status" = "failed" ]; then
+            return 2  # Special return code for failed status
         fi
 
         # Only return success if status is "ready"
@@ -274,11 +279,19 @@ wait_for_tenant() {
         
         # First try direct tenant get (more reliable)
         if [ -n "$TEST_PROJECT_ID" ]; then
-            if check_tenant_exists "$tenant_name" "$TEST_PROJECT_ID"; then
+            check_tenant_exists "$tenant_name" "$TEST_PROJECT_ID"
+            local tenant_check_result=$?
+
+            if [ $tenant_check_result -eq 0 ]; then
                 local current_time=$(date +%s)
                 local duration=$((current_time - start_time))
                 print_status "SUCCESS" "Tenant '$tenant_name' found via direct get after ${duration}s"
                 return 0
+            elif [ $tenant_check_result -eq 2 ]; then
+                local current_time=$(date +%s)
+                local duration=$((current_time - start_time))
+                print_status "ERROR" "Tenant '$tenant_name' is in failed state after ${duration}s"
+                return 2
             fi
         fi
         
@@ -314,6 +327,11 @@ wait_for_tenant() {
 
                 if [ "$DEBUG_MODE" = "true" ]; then
                     print_status "INFO" "Tenant found in list with status: '$status'"
+                fi
+
+                # Check for failed status
+                if [ "$status" = "failed" ]; then
+                    return 2  # Special return code for failed status
                 fi
 
                 # Only return success if status is "ready"
@@ -504,8 +522,11 @@ fi
 
 # Wait for tenant creation before proceeding (only if tenant creation was successful)
 if [ "$TENANT_CREATION_SUCCESS" = "true" ]; then
-    if wait_for_tenant "$TEST_TENANT_NAME" 180 5; then
-        # Get tenant ID for kubeconfig download
+    wait_for_tenant "$TEST_TENANT_NAME" 180 5
+    WAIT_RESULT=$?
+
+    if [ $WAIT_RESULT -eq 0 ]; then
+        # Tenant is ready - proceed with kubeconfig and nginx tests
         print_status "INFO" "Retrieving tenant ID for kubeconfig download..."
         TENANT_ID=$(./bin/spacectl tenant get --name "$TEST_TENANT_NAME" --project "$TEST_PROJECT_ID" --output json 2>/dev/null | jq -r '.id' 2>/dev/null)
 
@@ -567,10 +588,22 @@ if [ "$TENANT_CREATION_SUCCESS" = "true" ]; then
 
         # Delete tenant
         run_test "Delete Test Tenant" "./bin/spacectl tenant delete --name $TEST_TENANT_NAME --project $TEST_PROJECT_ID --force"
+    elif [ $WAIT_RESULT -eq 2 ]; then
+        # Tenant is in failed state - skip tests and proceed to deletion
+        print_status "WARNING" "Tenant is in failed state, skipping kubeconfig and nginx tests"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        FAILED_COMMANDS+=("Tenant Deployment: Tenant entered failed state")
+
+        # Still delete the failed tenant to clean up
+        run_test "Delete Failed Tenant" "./bin/spacectl tenant delete --name $TEST_TENANT_NAME --project $TEST_PROJECT_ID --force"
     else
+        # Timeout waiting for tenant
         FAILED_TESTS=$((FAILED_TESTS + 1))
         FAILED_COMMANDS+=("Tenant Creation Wait: Timeout waiting for tenant to be created")
-        print_status "ERROR" "Skipping tenant deletion due to creation timeout"
+        print_status "ERROR" "Timeout waiting for tenant, attempting deletion anyway..."
+
+        # Try to delete the tenant even if it timed out
+        run_test "Delete Timed Out Tenant" "./bin/spacectl tenant delete --name $TEST_TENANT_NAME --project $TEST_PROJECT_ID --force"
     fi
 else
     print_status "ERROR" "Skipping tenant wait and deletion due to tenant creation failure"

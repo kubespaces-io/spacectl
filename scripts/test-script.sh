@@ -221,6 +221,24 @@ check_tenant_exists() {
         fi
     fi
 
+    # If command succeeded, check if status is "ready"
+    if [ $exit_code -eq 0 ]; then
+        # Extract status from output (last column)
+        local status=$(echo "$output" | grep -v "^STATUS" | grep -v "^----" | awk '{print $NF}' | grep -v "^$" | tail -1)
+
+        if [ "$DEBUG_MODE" = "true" ]; then
+            print_status "INFO" "Tenant status: '$status'"
+        fi
+
+        # Only return success if status is "ready"
+        if [ "$status" = "ready" ]; then
+            return 0
+        else
+            # Tenant exists but not ready yet
+            return 1
+        fi
+    fi
+
     return $exit_code
 }
 
@@ -471,7 +489,7 @@ fi
 # Wait for tenant creation before proceeding (only if tenant creation was successful)
 if [ "$TENANT_CREATION_SUCCESS" = "true" ]; then
     if wait_for_tenant "$TEST_TENANT_NAME" 180 5; then
-        run_test "Delete Test Tenant" "./bin/spacectl tenant delete --name $TEST_TENANT_NAME --force"
+        run_test "Delete Test Tenant" "./bin/spacectl tenant delete --name $TEST_TENANT_NAME --project $TEST_PROJECT_ID --force"
     else
         FAILED_TESTS=$((FAILED_TESTS + 1))
         FAILED_COMMANDS+=("Tenant Creation Wait: Timeout waiting for tenant to be created")

@@ -13,12 +13,22 @@ type Config struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	UserEmail    string `json:"user_email"`
+
+	// Default tenant creation settings
+	DefaultCloud   string `json:"default_cloud,omitempty"`
+	DefaultRegion  string `json:"default_region,omitempty"`
+	DefaultCompute int    `json:"default_compute,omitempty"`
+	DefaultMemory  int    `json:"default_memory,omitempty"`
 }
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		APIURL: "http://localhost:8080",
+		APIURL:         "http://localhost:8080",
+		DefaultCloud:   "eks",
+		DefaultRegion:  "eu",
+		DefaultCompute: 2,
+		DefaultMemory:  4,
 	}
 }
 

@@ -161,18 +161,12 @@ func init() {
 	tenantCmd.AddCommand(tenantCreateCmd)
 	tenantCreateCmd.Flags().StringVar(&tenantCreateProject, "project", "", "Project ID")
 	tenantCreateCmd.Flags().StringVar(&tenantCreateProjectName, "project-name", "", "Project name")
-	tenantCreateCmd.Flags().StringVar(&tenantCreateCloud, "cloud", "", "Cloud provider")
-	tenantCreateCmd.Flags().StringVar(&tenantCreateRegion, "region", "", "Region")
-	tenantCreateCmd.Flags().StringVar(&tenantCreateK8sVersion, "k8s-version", "", "Kubernetes version")
-	tenantCreateCmd.Flags().IntVar(&tenantCreateCompute, "compute", 0, "Compute quota (cores)")
-	tenantCreateCmd.Flags().IntVar(&tenantCreateMemory, "memory", 0, "Memory quota (GB)")
+	tenantCreateCmd.Flags().StringVar(&tenantCreateCloud, "cloud", "", "Cloud provider (uses config default if not set)")
+	tenantCreateCmd.Flags().StringVar(&tenantCreateRegion, "region", "", "Region (uses config default if not set)")
+	tenantCreateCmd.Flags().StringVar(&tenantCreateK8sVersion, "k8s-version", "", "Kubernetes version (uses latest if not set)")
+	tenantCreateCmd.Flags().IntVar(&tenantCreateCompute, "compute", 0, "Compute quota in cores (uses config default if not set)")
+	tenantCreateCmd.Flags().IntVar(&tenantCreateMemory, "memory", 0, "Memory quota in GB (uses config default if not set)")
 	tenantCreateCmd.Flags().StringVar(&tenantCreateNamespaceSuffix, "namespace-suffix", "", "Namespace suffix")
-	tenantCreateCmd.MarkFlagRequired("project")
-	tenantCreateCmd.MarkFlagRequired("cloud")
-	tenantCreateCmd.MarkFlagRequired("region")
-	tenantCreateCmd.MarkFlagRequired("k8s-version")
-	tenantCreateCmd.MarkFlagRequired("compute")
-	tenantCreateCmd.MarkFlagRequired("memory")
 }
 
 func runTenantCreate(cmd *cobra.Command, args []string) error {
@@ -186,6 +180,7 @@ func runTenantCreate(cmd *cobra.Command, args []string) error {
 	// Create API client
 	client := api.NewClient(cfg.APIURL, cfg, debug)
 	tenantAPI := api.NewTenantAPI(client)
+
 	// Resolve project if name provided
 	if tenantCreateProjectName != "" && tenantCreateProject != "" {
 		return fmt.Errorf("only one of --project or --project-name is allowed")
@@ -196,6 +191,63 @@ func runTenantCreate(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		tenantCreateProject = pid
+	}
+
+	// Require project
+	if tenantCreateProject == "" && tenantCreateProjectName == "" {
+		return fmt.Errorf("either --project or --project-name is required")
+	}
+
+	// Apply defaults from config
+	if tenantCreateCloud == "" {
+		if cfg.DefaultCloud != "" {
+			tenantCreateCloud = cfg.DefaultCloud
+		} else {
+			return fmt.Errorf("--cloud is required (or set default_cloud in ~/.spacectl)")
+		}
+	}
+
+	if tenantCreateRegion == "" {
+		if cfg.DefaultRegion != "" {
+			tenantCreateRegion = cfg.DefaultRegion
+		} else {
+			return fmt.Errorf("--region is required (or set default_region in ~/.spacectl)")
+		}
+	}
+
+	if tenantCreateCompute == 0 {
+		if cfg.DefaultCompute > 0 {
+			tenantCreateCompute = cfg.DefaultCompute
+		} else {
+			tenantCreateCompute = 2 // Fallback default
+		}
+	}
+
+	if tenantCreateMemory == 0 {
+		if cfg.DefaultMemory > 0 {
+			tenantCreateMemory = cfg.DefaultMemory
+		} else {
+			tenantCreateMemory = 4 // Fallback default
+		}
+	}
+
+	// Fetch latest k8s version if not provided
+	if tenantCreateK8sVersion == "" {
+		if !quiet {
+			fmt.Println("Fetching latest Kubernetes version...")
+		}
+		versions, err := tenantAPI.GetAvailableKubernetesVersions()
+		if err != nil {
+			return fmt.Errorf("failed to fetch Kubernetes versions: %w", err)
+		}
+		if len(versions) == 0 {
+			return fmt.Errorf("no Kubernetes versions available")
+		}
+		// Use the first version (should be the latest)
+		tenantCreateK8sVersion = versions[0].Version
+		if !quiet {
+			fmt.Printf("Using Kubernetes version: %s\n", tenantCreateK8sVersion)
+		}
 	}
 
 	// Prepare request

@@ -2,9 +2,14 @@ package cmd
 
 import (
 	"bufio"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"spacectl/internal/api"
 	"spacectl/internal/models"

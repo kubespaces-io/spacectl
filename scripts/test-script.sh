@@ -542,10 +542,27 @@ if [ "$TENANT_CREATION_SUCCESS" = "true" ]; then
                 # Deploy nginx pod with minimal resource limits
                 print_status "INFO" "Deploying nginx pod to test cluster connectivity..."
                 if [ "$DEBUG_MODE" = "true" ]; then
-                    print_status "INFO" "Running: kubectl --kubeconfig=\"$KUBECONFIG_FILE\" run nginx-test --image=nginx:latest --restart=Never --requests='cpu=100m,memory=128Mi' --limits='cpu=200m,memory=256Mi'"
+                    print_status "INFO" "Running: kubectl run nginx-test with resource limits (cpu: 100m-200m, memory: 128Mi-256Mi)"
                 fi
 
-                POD_CREATE_OUTPUT=$(kubectl --kubeconfig="$KUBECONFIG_FILE" run nginx-test --image=nginx:latest --restart=Never --requests='cpu=100m,memory=128Mi' --limits='cpu=200m,memory=256Mi' 2>&1)
+                POD_CREATE_OUTPUT=$(kubectl --kubeconfig="$KUBECONFIG_FILE" run nginx-test --image=nginx:latest --restart=Never --overrides='{
+                  "spec": {
+                    "containers": [{
+                      "name": "nginx-test",
+                      "image": "nginx:latest",
+                      "resources": {
+                        "requests": {
+                          "cpu": "100m",
+                          "memory": "128Mi"
+                        },
+                        "limits": {
+                          "cpu": "200m",
+                          "memory": "256Mi"
+                        }
+                      }
+                    }]
+                  }
+                }' 2>&1)
                 if [ $? -eq 0 ]; then
                     print_status "SUCCESS" "Nginx pod created"
                     if [ "$DEBUG_MODE" = "true" ]; then

@@ -545,11 +545,11 @@ if [ "$TENANT_CREATION_SUCCESS" = "true" ]; then
                     print_status "INFO" "Running: kubectl run nginx-test with resource limits (cpu: 100m-200m, memory: 128Mi-256Mi)"
                 fi
 
-                POD_CREATE_OUTPUT=$(kubectl --kubeconfig="$KUBECONFIG_FILE" run nginx-test --image=nginx:latest --restart=Never --overrides='{
+                POD_CREATE_OUTPUT=$(kubectl --kubeconfig="$KUBECONFIG_FILE" run nginx-test --image=mirror.gcr.io/library/nginx:latest --restart=Never --overrides='{
                   "spec": {
                     "containers": [{
                       "name": "nginx-test",
-                      "image": "nginx:latest",
+                      "image": "mirror.gcr.io/library/nginx:latest",
                       "resources": {
                         "requests": {
                           "cpu": "100m",

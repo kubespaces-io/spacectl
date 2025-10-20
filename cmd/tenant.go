@@ -614,13 +614,11 @@ func runTenantKubectl(cmd *cobra.Command, args []string) error {
 
 	// Parse arguments to find the separator "--"
 	var kubectlArgs []string
-	var spacectlArgs []string
 	foundSeparator := false
 
 	for i, arg := range args {
 		if arg == "--" {
 			foundSeparator = true
-			spacectlArgs = args[:i]
 			if i+1 < len(args) {
 				kubectlArgs = args[i+1:]
 			}

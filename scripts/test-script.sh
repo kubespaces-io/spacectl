@@ -541,12 +541,25 @@ if [ "$TENANT_CREATION_SUCCESS" = "true" ]; then
 
                 # Deploy nginx pod
                 print_status "INFO" "Deploying nginx pod to test cluster connectivity..."
-                if kubectl --kubeconfig="$KUBECONFIG_FILE" run nginx-test --image=nginx:latest --restart=Never 2>&1; then
+                if [ "$DEBUG_MODE" = "true" ]; then
+                    print_status "INFO" "Running: kubectl --kubeconfig=\"$KUBECONFIG_FILE\" run nginx-test --image=nginx:latest --restart=Never"
+                fi
+
+                POD_CREATE_OUTPUT=$(kubectl --kubeconfig="$KUBECONFIG_FILE" run nginx-test --image=nginx:latest --restart=Never 2>&1)
+                if [ $? -eq 0 ]; then
                     print_status "SUCCESS" "Nginx pod created"
+                    if [ "$DEBUG_MODE" = "true" ]; then
+                        echo "$POD_CREATE_OUTPUT"
+                    fi
 
                     # Wait for pod to be ready
                     print_status "INFO" "Waiting for nginx pod to be ready (max 60s)..."
-                    if kubectl --kubeconfig="$KUBECONFIG_FILE" wait --for=condition=Ready pod/nginx-test --timeout=60s 2>&1; then
+                    if [ "$DEBUG_MODE" = "true" ]; then
+                        print_status "INFO" "Running: kubectl --kubeconfig=\"$KUBECONFIG_FILE\" wait --for=condition=Ready pod/nginx-test --timeout=60s"
+                    fi
+
+                    WAIT_OUTPUT=$(kubectl --kubeconfig="$KUBECONFIG_FILE" wait --for=condition=Ready pod/nginx-test --timeout=60s 2>&1)
+                    if [ $? -eq 0 ]; then
                         print_status "SUCCESS" "Nginx pod is ready"
 
                         # Verify pod is running
@@ -561,17 +574,41 @@ if [ "$TENANT_CREATION_SUCCESS" = "true" ]; then
 
                         # Clean up nginx pod
                         print_status "INFO" "Cleaning up nginx pod..."
-                        if kubectl --kubeconfig="$KUBECONFIG_FILE" delete pod nginx-test --wait=true --timeout=30s 2>&1; then
+                        if [ "$DEBUG_MODE" = "true" ]; then
+                            print_status "INFO" "Running: kubectl --kubeconfig=\"$KUBECONFIG_FILE\" delete pod nginx-test"
+                        fi
+                        DELETE_OUTPUT=$(kubectl --kubeconfig="$KUBECONFIG_FILE" delete pod nginx-test --wait=true --timeout=30s 2>&1)
+                        if [ $? -eq 0 ]; then
                             print_status "SUCCESS" "Nginx pod deleted"
                         else
                             print_status "WARNING" "Failed to delete nginx pod, continuing anyway"
+                            if [ "$DEBUG_MODE" = "true" ]; then
+                                echo "$DELETE_OUTPUT"
+                            fi
                         fi
                     else
                         print_status "ERROR" "Nginx pod failed to become ready"
+                        echo "$WAIT_OUTPUT"
+
+                        # Show pod status for debugging
+                        print_status "INFO" "Pod status details:"
+                        kubectl --kubeconfig="$KUBECONFIG_FILE" get pod nginx-test -o wide 2>&1 || echo "Could not get pod status"
+
+                        print_status "INFO" "Pod events:"
+                        kubectl --kubeconfig="$KUBECONFIG_FILE" describe pod nginx-test 2>&1 | grep -A 20 "Events:" || echo "Could not get pod events"
+
+                        print_status "INFO" "Pod logs:"
+                        kubectl --kubeconfig="$KUBECONFIG_FILE" logs nginx-test 2>&1 || echo "Could not get pod logs"
+
                         FAILED_TESTS=$((FAILED_TESTS + 1))
+
+                        # Clean up failed pod
+                        print_status "INFO" "Cleaning up failed pod..."
+                        kubectl --kubeconfig="$KUBECONFIG_FILE" delete pod nginx-test --force --grace-period=0 2>&1 || echo "Could not delete pod"
                     fi
                 else
                     print_status "ERROR" "Failed to create nginx pod"
+                    echo "$POD_CREATE_OUTPUT"
                     FAILED_TESTS=$((FAILED_TESTS + 1))
                 fi
 

@@ -305,15 +305,31 @@ wait_for_tenant() {
         fi
         
         if [ $list_exit_code -eq 0 ] && [ -n "$tenant_list_output" ]; then
-            # Check if tenant name appears in the list
-            if echo "$tenant_list_output" | grep -q "$tenant_name"; then
-                local current_time=$(date +%s)
-                local duration=$((current_time - start_time))
-                print_status "SUCCESS" "Tenant '$tenant_name' found in list after ${duration}s"
-                return 0
+            # Check if tenant name appears in the list and extract its status
+            local tenant_line=$(echo "$tenant_list_output" | grep "^$tenant_name")
+
+            if [ -n "$tenant_line" ]; then
+                # Extract status from the line (last column)
+                local status=$(echo "$tenant_line" | awk '{print $NF}')
+
+                if [ "$DEBUG_MODE" = "true" ]; then
+                    print_status "INFO" "Tenant found in list with status: '$status'"
+                fi
+
+                # Only return success if status is "ready"
+                if [ "$status" = "ready" ]; then
+                    local current_time=$(date +%s)
+                    local duration=$((current_time - start_time))
+                    print_status "SUCCESS" "Tenant '$tenant_name' is ready after ${duration}s"
+                    return 0
+                else
+                    if [ "$DEBUG_MODE" = "true" ]; then
+                        print_status "INFO" "Tenant exists but status is '$status', waiting for 'ready'..."
+                    fi
+                fi
             fi
-            
-            # Also check for partial matches or similar names
+
+            # Also check for partial matches or similar names in debug mode
             if [ "$DEBUG_MODE" = "true" ]; then
                 print_status "INFO" "Available tenants:"
                 echo "$tenant_list_output" | grep -o '[a-zA-Z0-9-]*' | grep -v '^$' | head -10

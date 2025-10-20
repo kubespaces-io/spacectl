@@ -332,7 +332,7 @@ wait_for_tenant() {
             # Also check for partial matches or similar names in debug mode
             if [ "$DEBUG_MODE" = "true" ]; then
                 print_status "INFO" "Available tenants:"
-                echo "$tenant_list_output" | grep -o '[a-zA-Z0-9-]*' | grep -v '^$' | head -10
+                echo "$tenant_list_output" | grep -v "^NAME" | grep -v "^----" | grep -v "^$" | awk '{print $1}' | head -10
             fi
         else
             if [ "$DEBUG_MODE" = "true" ]; then

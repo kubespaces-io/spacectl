@@ -505,6 +505,67 @@ fi
 # Wait for tenant creation before proceeding (only if tenant creation was successful)
 if [ "$TENANT_CREATION_SUCCESS" = "true" ]; then
     if wait_for_tenant "$TEST_TENANT_NAME" 180 5; then
+        # Get tenant ID for kubeconfig download
+        print_status "INFO" "Retrieving tenant ID for kubeconfig download..."
+        TENANT_ID=$(./bin/spacectl tenant get --name "$TEST_TENANT_NAME" --project "$TEST_PROJECT_ID" --output json 2>/dev/null | jq -r '.id' 2>/dev/null)
+
+        if [ -n "$TENANT_ID" ] && [ "$TENANT_ID" != "null" ]; then
+            print_status "SUCCESS" "Tenant ID: $TENANT_ID"
+
+            # Download kubeconfig
+            KUBECONFIG_FILE="/tmp/test-kubeconfig-${TENANT_ID}.yaml"
+            print_status "INFO" "Downloading kubeconfig to $KUBECONFIG_FILE..."
+            if ./bin/spacectl tenant kubeconfig "$TENANT_ID" --output-file "$KUBECONFIG_FILE" 2>&1; then
+                print_status "SUCCESS" "Kubeconfig downloaded successfully"
+
+                # Deploy nginx pod
+                print_status "INFO" "Deploying nginx pod to test cluster connectivity..."
+                if kubectl --kubeconfig="$KUBECONFIG_FILE" run nginx-test --image=nginx:latest --restart=Never 2>&1; then
+                    print_status "SUCCESS" "Nginx pod created"
+
+                    # Wait for pod to be ready
+                    print_status "INFO" "Waiting for nginx pod to be ready (max 60s)..."
+                    if kubectl --kubeconfig="$KUBECONFIG_FILE" wait --for=condition=Ready pod/nginx-test --timeout=60s 2>&1; then
+                        print_status "SUCCESS" "Nginx pod is ready"
+
+                        # Verify pod is running
+                        print_status "INFO" "Verifying pod status..."
+                        POD_STATUS=$(kubectl --kubeconfig="$KUBECONFIG_FILE" get pod nginx-test -o jsonpath='{.status.phase}' 2>/dev/null)
+                        if [ "$POD_STATUS" = "Running" ]; then
+                            print_status "SUCCESS" "Pod verification passed - nginx is running"
+                            PASSED_TESTS=$((PASSED_TESTS + 1))
+                        else
+                            print_status "WARNING" "Pod status is '$POD_STATUS' instead of 'Running'"
+                        fi
+
+                        # Clean up nginx pod
+                        print_status "INFO" "Cleaning up nginx pod..."
+                        if kubectl --kubeconfig="$KUBECONFIG_FILE" delete pod nginx-test --wait=true --timeout=30s 2>&1; then
+                            print_status "SUCCESS" "Nginx pod deleted"
+                        else
+                            print_status "WARNING" "Failed to delete nginx pod, continuing anyway"
+                        fi
+                    else
+                        print_status "ERROR" "Nginx pod failed to become ready"
+                        FAILED_TESTS=$((FAILED_TESTS + 1))
+                    fi
+                else
+                    print_status "ERROR" "Failed to create nginx pod"
+                    FAILED_TESTS=$((FAILED_TESTS + 1))
+                fi
+
+                # Clean up kubeconfig file
+                rm -f "$KUBECONFIG_FILE"
+            else
+                print_status "ERROR" "Failed to download kubeconfig"
+                FAILED_TESTS=$((FAILED_TESTS + 1))
+            fi
+        else
+            print_status "ERROR" "Failed to retrieve tenant ID"
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+        fi
+
+        # Delete tenant
         run_test "Delete Test Tenant" "./bin/spacectl tenant delete --name $TEST_TENANT_NAME --project $TEST_PROJECT_ID --force"
     else
         FAILED_TESTS=$((FAILED_TESTS + 1))

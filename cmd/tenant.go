@@ -571,3 +571,180 @@ func runTenantK8sVersions(cmd *cobra.Command, args []string) error {
 	// Output versions
 	return formatter.FormatData(versions)
 }
+
+// tenantKubectlCmd represents the tenant kubectl command
+var tenantKubectlCmd = &cobra.Command{
+	Use:   "kubectl [flags] -- [kubectl args]",
+	Short: "Execute kubectl commands on a tenant",
+	Long: `Execute kubectl commands on a tenant using its kubeconfig.
+The kubeconfig is automatically retrieved and cached for performance.
+
+Examples:
+  spacectl tenant kubectl --name my-tenant --project my-project -- get pods
+  spacectl tenant kubectl --id abc123 -- get nodes
+  spacectl tenant kubectl --name my-tenant --project my-project -- apply -f deployment.yaml`,
+	RunE:                   runTenantKubectl,
+	DisableFlagsInUseLine:  true,
+	DisableFlagParsing:     false,
+	FParseErrWhitelist:     cobra.FParseErrWhitelist{UnknownFlags: true},
+}
+
+var (
+	tenantKubectlName      string
+	tenantKubectlID        string
+	tenantKubectlProjectID string
+	tenantKubectlProjectName string
+	tenantKubectlNoCache   bool
+)
+
+func init() {
+	tenantCmd.AddCommand(tenantKubectlCmd)
+	tenantKubectlCmd.Flags().StringVar(&tenantKubectlName, "name", "", "Tenant name")
+	tenantKubectlCmd.Flags().StringVar(&tenantKubectlID, "id", "", "Tenant ID")
+	tenantKubectlCmd.Flags().StringVar(&tenantKubectlProjectID, "project", "", "Project ID (required if using --name)")
+	tenantKubectlCmd.Flags().StringVar(&tenantKubectlProjectName, "project-name", "", "Project name (alternative to --project)")
+	tenantKubectlCmd.Flags().BoolVar(&tenantKubectlNoCache, "no-cache", false, "Skip cache and fetch fresh kubeconfig")
+}
+
+func runTenantKubectl(cmd *cobra.Command, args []string) error {
+	// Check if user is authenticated
+	if !cfg.IsAuthenticated() {
+		return fmt.Errorf("not authenticated. Please run 'spacectl login' first")
+	}
+
+	// Parse arguments to find the separator "--"
+	var kubectlArgs []string
+	var spacectlArgs []string
+	foundSeparator := false
+
+	for i, arg := range args {
+		if arg == "--" {
+			foundSeparator = true
+			spacectlArgs = args[:i]
+			if i+1 < len(args) {
+				kubectlArgs = args[i+1:]
+			}
+			break
+		}
+	}
+
+	if !foundSeparator {
+		kubectlArgs = args
+	}
+
+	if len(kubectlArgs) == 0 {
+		return fmt.Errorf("no kubectl command provided. Usage: spacectl tenant kubectl [flags] -- <kubectl-command>")
+	}
+
+	// Create API client
+	client := api.NewClient(cfg.APIURL, cfg, debug)
+	tenantAPI := api.NewTenantAPI(client)
+
+	// Resolve tenant ID
+	var tenantID string
+	var err error
+
+	if tenantKubectlName != "" && tenantKubectlID != "" {
+		return fmt.Errorf("only one of --name or --id is allowed")
+	}
+
+	if tenantKubectlName != "" {
+		// Need project context for name resolution
+		if tenantKubectlProjectID != "" && tenantKubectlProjectName != "" {
+			return fmt.Errorf("only one of --project or --project-name is allowed")
+		}
+		if tenantKubectlProjectID == "" && tenantKubectlProjectName != "" {
+			pid, err := resolveProjectID(client, tenantKubectlProjectName, "", "")
+			if err != nil {
+				return err
+			}
+			tenantKubectlProjectID = pid
+		}
+		if tenantKubectlProjectID == "" {
+			return fmt.Errorf("--project or --project-name is required when using --name")
+		}
+
+		tenantID, err = resolveTenantID(client, tenantKubectlName, "", tenantKubectlProjectID)
+		if err != nil {
+			return err
+		}
+	} else if tenantKubectlID != "" {
+		tenantID = tenantKubectlID
+	} else {
+		return fmt.Errorf("either --name or --id must be provided")
+	}
+
+	// Get or retrieve kubeconfig
+	kubeconfigPath, err := getOrFetchKubeconfig(tenantAPI, tenantID, tenantKubectlNoCache)
+	if err != nil {
+		return fmt.Errorf("failed to get kubeconfig: %w", err)
+	}
+
+	// Execute kubectl with the kubeconfig
+	kubectlCmd := exec.Command("kubectl", kubectlArgs...)
+	kubectlCmd.Env = append(os.Environ(), fmt.Sprintf("KUBECONFIG=%s", kubeconfigPath))
+	kubectlCmd.Stdout = os.Stdout
+	kubectlCmd.Stderr = os.Stderr
+	kubectlCmd.Stdin = os.Stdin
+
+	if err := kubectlCmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		return fmt.Errorf("failed to execute kubectl: %w", err)
+	}
+
+	return nil
+}
+
+// getOrFetchKubeconfig retrieves the kubeconfig from cache or fetches it from the API
+func getOrFetchKubeconfig(tenantAPI *api.TenantAPI, tenantID string, noCache bool) (string, error) {
+	// Create cache directory
+	cacheDir := filepath.Join(os.TempDir(), "spacectl-kubeconfigs")
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create cache directory: %w", err)
+	}
+
+	// Generate cache filename using tenant ID hash
+	hash := md5.Sum([]byte(tenantID))
+	cacheFile := filepath.Join(cacheDir, hex.EncodeToString(hash[:])+".yaml")
+
+	// Check if cached file exists and is fresh (less than 1 hour old)
+	if !noCache {
+		if info, err := os.Stat(cacheFile); err == nil {
+			age := time.Since(info.ModTime())
+			if age < 1*time.Hour {
+				if debug {
+					fmt.Fprintf(os.Stderr, "Using cached kubeconfig (age: %s)\n", age.Round(time.Second))
+				}
+				return cacheFile, nil
+			}
+			if debug {
+				fmt.Fprintf(os.Stderr, "Cache expired (age: %s), fetching fresh kubeconfig\n", age.Round(time.Second))
+			}
+		}
+	} else if debug {
+		fmt.Fprintln(os.Stderr, "Cache disabled, fetching fresh kubeconfig")
+	}
+
+	// Fetch kubeconfig from API
+	if debug {
+		fmt.Fprintf(os.Stderr, "Fetching kubeconfig for tenant %s...\n", tenantID)
+	}
+
+	kubeconfig, err := tenantAPI.GetTenantKubeconfig(tenantID)
+	if err != nil {
+		return "", err
+	}
+
+	// Write to cache file
+	if err := os.WriteFile(cacheFile, []byte(kubeconfig), 0600); err != nil {
+		return "", fmt.Errorf("failed to write kubeconfig to cache: %w", err)
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "Kubeconfig cached at %s\n", cacheFile)
+	}
+
+	return cacheFile, nil
+}

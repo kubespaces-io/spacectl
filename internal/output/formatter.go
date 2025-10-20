@@ -220,6 +220,54 @@ func (f *Formatter) convertToRecords(data interface{}) ([]map[string]interface{}
 						"organization_id": m.OrganizationID,
 					})
 				}
+			case models.Location:
+				records = append(records, map[string]interface{}{
+					"cloud_provider": m.CloudProvider,
+					"region":         m.Region,
+					"zone":           m.Zone,
+				})
+			case *models.Location:
+				if m != nil {
+					records = append(records, map[string]interface{}{
+						"cloud_provider": m.CloudProvider,
+						"region":         m.Region,
+						"zone":           m.Zone,
+					})
+				}
+			case models.KubernetesVersion:
+				records = append(records, map[string]interface{}{
+					"version":    m.Version,
+					"is_default": m.IsDefault,
+				})
+			case *models.KubernetesVersion:
+				if m != nil {
+					records = append(records, map[string]interface{}{
+						"version":    m.Version,
+						"is_default": m.IsDefault,
+					})
+				}
+			case models.Tenant:
+				records = append(records, map[string]interface{}{
+					"name":               m.Name,
+					"cloud_provider":     m.CloudProvider,
+					"region":             m.Region,
+					"kubernetes_version": m.KubernetesVersion,
+					"compute_quota":      m.ComputeQuota,
+					"memory_quota_gb":    m.MemoryQuotaGB,
+					"status":             m.Status,
+				})
+			case *models.Tenant:
+				if m != nil {
+					records = append(records, map[string]interface{}{
+						"name":               m.Name,
+						"cloud_provider":     m.CloudProvider,
+						"region":             m.Region,
+						"kubernetes_version": m.KubernetesVersion,
+						"compute_quota":      m.ComputeQuota,
+						"memory_quota_gb":    m.MemoryQuotaGB,
+						"status":             m.Status,
+					})
+				}
 			case map[string]interface{}:
 				records = append(records, item.(map[string]interface{}))
 			default:
@@ -290,6 +338,57 @@ func (f *Formatter) convertToRecords(data interface{}) ([]map[string]interface{}
 				}}, nil
 			}
 			return nil, nil
+		case models.Location:
+			return []map[string]interface{}{map[string]interface{}{
+				"cloud_provider": m.CloudProvider,
+				"region":         m.Region,
+				"zone":           m.Zone,
+			}}, nil
+		case *models.Location:
+			if m != nil {
+				return []map[string]interface{}{map[string]interface{}{
+					"cloud_provider": m.CloudProvider,
+					"region":         m.Region,
+					"zone":           m.Zone,
+				}}, nil
+			}
+			return nil, nil
+		case models.KubernetesVersion:
+			return []map[string]interface{}{map[string]interface{}{
+				"version":    m.Version,
+				"is_default": m.IsDefault,
+			}}, nil
+		case *models.KubernetesVersion:
+			if m != nil {
+				return []map[string]interface{}{map[string]interface{}{
+					"version":    m.Version,
+					"is_default": m.IsDefault,
+				}}, nil
+			}
+			return nil, nil
+		case models.Tenant:
+			return []map[string]interface{}{map[string]interface{}{
+				"name":               m.Name,
+				"cloud_provider":     m.CloudProvider,
+				"region":             m.Region,
+				"kubernetes_version": m.KubernetesVersion,
+				"compute_quota":      m.ComputeQuota,
+				"memory_quota_gb":    m.MemoryQuotaGB,
+				"status":             m.Status,
+			}}, nil
+		case *models.Tenant:
+			if m != nil {
+				return []map[string]interface{}{map[string]interface{}{
+					"name":               m.Name,
+					"cloud_provider":     m.CloudProvider,
+					"region":             m.Region,
+					"kubernetes_version": m.KubernetesVersion,
+					"compute_quota":      m.ComputeQuota,
+					"memory_quota_gb":    m.MemoryQuotaGB,
+					"status":             m.Status,
+				}}, nil
+			}
+			return nil, nil
 		case map[string]interface{}:
 			return []map[string]interface{}{data.(map[string]interface{})}, nil
 		default:
@@ -311,6 +410,21 @@ func getOrderedHeadersFromRecord(record map[string]interface{}) []string {
 	// Preferred order for organization membership list
 	if hasKeys(record, "organization", "role", "is_default") {
 		return []string{"organization", "role", "is_default"}
+	}
+
+	// Preferred order for location list
+	if hasKeys(record, "cloud_provider", "region", "zone") {
+		return []string{"cloud_provider", "region", "zone"}
+	}
+
+	// Preferred order for kubernetes version list
+	if hasKeys(record, "version", "is_default") {
+		return []string{"version", "is_default"}
+	}
+
+	// Preferred order for tenant list
+	if hasKeys(record, "name", "cloud_provider", "region", "kubernetes_version", "compute_quota", "memory_quota_gb", "status") {
+		return []string{"name", "cloud_provider", "region", "kubernetes_version", "compute_quota", "memory_quota_gb", "status"}
 	}
 
 	// Fallback: sort keys alphabetically for stability

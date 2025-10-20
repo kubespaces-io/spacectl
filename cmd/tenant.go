@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -286,15 +287,28 @@ func runTenantGet(cmd *cobra.Command, args []string) error {
 
 // tenantDeleteCmd represents the tenant delete command
 var tenantDeleteCmd = &cobra.Command{
-	Use:   "delete <id>",
+	Use:   "delete",
 	Short: "Delete a tenant",
 	Long:  `Delete a tenant. This action cannot be undone.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.NoArgs,
 	RunE:  runTenantDelete,
 }
 
+var (
+	tenantDeleteForce       bool
+	tenantDeleteID          string
+	tenantDeleteName        string
+	tenantDeleteProjectID   string
+	tenantDeleteProjectName string
+)
+
 func init() {
 	tenantCmd.AddCommand(tenantDeleteCmd)
+	tenantDeleteCmd.Flags().BoolVar(&tenantDeleteForce, "force", false, "Skip confirmation prompt")
+	tenantDeleteCmd.Flags().StringVar(&tenantDeleteID, "id", "", "Tenant ID")
+	tenantDeleteCmd.Flags().StringVar(&tenantDeleteName, "name", "", "Tenant name")
+	tenantDeleteCmd.Flags().StringVar(&tenantDeleteProjectID, "project", "", "Project ID (required if using --name)")
+	tenantDeleteCmd.Flags().StringVar(&tenantDeleteProjectName, "project-name", "", "Project name (alternative to --project when using --name)")
 }
 
 func runTenantDelete(cmd *cobra.Command, args []string) error {
@@ -303,21 +317,68 @@ func runTenantDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not authenticated. Please run 'spacectl login' first")
 	}
 
-	id := args[0]
-
 	// Create API client
 	client := api.NewClient(cfg.APIURL, cfg, debug)
 	tenantAPI := api.NewTenantAPI(client)
 
+	// Resolve tenant
+	if tenantDeleteName != "" && tenantDeleteID != "" {
+		return fmt.Errorf("only one of --name or --id is allowed")
+	}
+	if tenantDeleteName != "" {
+		// need project context
+		if tenantDeleteProjectID != "" && tenantDeleteProjectName != "" {
+			return fmt.Errorf("only one of --project or --project-name is allowed")
+		}
+		if tenantDeleteProjectID == "" && tenantDeleteProjectName != "" {
+			pid, err := resolveProjectID(client, tenantDeleteProjectName, "", "")
+			if err != nil {
+				return err
+			}
+			tenantDeleteProjectID = pid
+		}
+		var err error
+		tenantDeleteID, err = resolveTenantID(client, tenantDeleteName, "", tenantDeleteProjectID)
+		if err != nil {
+			return err
+		}
+	} else if tenantDeleteID == "" {
+		return fmt.Errorf("either --name or --id must be provided")
+	}
+
+	// Get tenant details for confirmation
+	tenant, err := tenantAPI.GetTenant(tenantDeleteID)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant details: %w", err)
+	}
+
+	// Ask for confirmation unless --force is used
+	if !tenantDeleteForce {
+		fmt.Printf("Are you sure you want to delete tenant '%s' (ID: %s)? This action cannot be undone.\n", tenant.Name, tenantDeleteID)
+		fmt.Print("Type 'yes' to confirm: ")
+
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read input: %w", err)
+		}
+
+		response = strings.TrimSpace(strings.ToLower(response))
+		if response != "yes" {
+			fmt.Println("Deletion cancelled.")
+			return nil
+		}
+	}
+
 	// Delete tenant
-	err := tenantAPI.DeleteTenant(id)
+	err = tenantAPI.DeleteTenant(tenantDeleteID)
 	if err != nil {
 		return fmt.Errorf("failed to delete tenant: %w", err)
 	}
 
 	// Output success message
 	if !quiet {
-		fmt.Printf("Successfully deleted tenant %s\n", id)
+		fmt.Printf("Successfully deleted tenant %s\n", tenantDeleteID)
 	}
 
 	return nil

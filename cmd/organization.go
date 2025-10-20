@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 
 	"spacectl/internal/api"
 
@@ -205,13 +208,15 @@ func init() {
 }
 
 var (
-	orgDeleteName string
-	orgDeleteID   string
+	orgDeleteName  string
+	orgDeleteID    string
+	orgDeleteForce bool
 )
 
 func init() {
 	orgDeleteCmd.Flags().StringVar(&orgDeleteName, "name", "", "Organization name")
 	orgDeleteCmd.Flags().StringVar(&orgDeleteID, "id", "", "Organization ID")
+	orgDeleteCmd.Flags().BoolVar(&orgDeleteForce, "force", false, "Skip confirmation prompt")
 }
 
 func runOrgDelete(cmd *cobra.Command, args []string) error {
@@ -228,6 +233,30 @@ func runOrgDelete(cmd *cobra.Command, args []string) error {
 	resolvedID, err := resolveOrganizationID(client, orgDeleteName, orgDeleteID)
 	if err != nil {
 		return err
+	}
+
+	// Get organization details for confirmation
+	org, err := orgAPI.GetOrganization(resolvedID)
+	if err != nil {
+		return fmt.Errorf("failed to get organization details: %w", err)
+	}
+
+	// Ask for confirmation unless --force is used
+	if !orgDeleteForce {
+		fmt.Printf("Are you sure you want to delete organization '%s' (ID: %s)? This action cannot be undone.\n", org.Name, resolvedID)
+		fmt.Print("Type 'yes' to confirm: ")
+
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read input: %w", err)
+		}
+
+		response = strings.TrimSpace(strings.ToLower(response))
+		if response != "yes" {
+			fmt.Println("Deletion cancelled.")
+			return nil
+		}
 	}
 
 	// Delete organization

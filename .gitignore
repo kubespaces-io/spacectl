@@ -79,3 +79,4 @@ site/
 *.bak
 *.backup
 *.orig
+bin/spacectl

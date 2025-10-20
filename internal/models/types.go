@@ -134,7 +134,7 @@ type KubernetesVersion struct {
 type Location struct {
 	CloudProvider string `json:"cloud_provider"`
 	Region        string `json:"region"`
-	DisplayName   string `json:"display_name"`
+	Zone          string `json:"zone"`
 }
 
 // Auth types

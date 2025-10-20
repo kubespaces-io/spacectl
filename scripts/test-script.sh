@@ -198,22 +198,29 @@ run_test() {
 check_tenant_exists() {
     local tenant_name="$1"
     local project_id="$2"
-    
+
     # Try to get the tenant directly using the project ID
+    local cmd="./bin/spacectl tenant get --name \"$tenant_name\" --project \"$project_id\""
+
+    if [ "$DEBUG_MODE" = "true" ]; then
+        print_status "INFO" "Running command: $cmd"
+    fi
+
     local output
-    output=$(./bin/spacectl tenant get --name "$tenant_name" --project "$project_id" 2>/dev/null)
+    output=$(./bin/spacectl tenant get --name "$tenant_name" --project "$project_id" 2>&1)
     local exit_code=$?
-    
+
     if [ "$DEBUG_MODE" = "true" ]; then
         print_status "INFO" "Direct tenant check for '$tenant_name' in project '$project_id' (exit code: $exit_code)"
         if [ $exit_code -eq 0 ]; then
             print_status "SUCCESS" "Tenant found via direct get:"
             echo "$output"
         else
-            print_status "INFO" "Tenant not found via direct get"
+            print_status "INFO" "Tenant not found via direct get. Error output:"
+            echo "$output"
         fi
     fi
-    
+
     return $exit_code
 }
 
@@ -258,10 +265,22 @@ wait_for_tenant() {
         fi
         
         # Fallback to tenant list method
+        if [ "$DEBUG_MODE" = "true" ]; then
+            if [ -n "$TEST_PROJECT_ID" ]; then
+                print_status "INFO" "Running command: ./bin/spacectl tenant list --project \"$TEST_PROJECT_ID\""
+            else
+                print_status "INFO" "Running command: ./bin/spacectl tenant list"
+            fi
+        fi
+
         local tenant_list_output
-        tenant_list_output=$(./bin/spacectl tenant list --quiet 2>/dev/null)
+        if [ -n "$TEST_PROJECT_ID" ]; then
+            tenant_list_output=$(./bin/spacectl tenant list --project "$TEST_PROJECT_ID" 2>&1)
+        else
+            tenant_list_output=$(./bin/spacectl tenant list 2>&1)
+        fi
         local list_exit_code=$?
-        
+
         if [ "$DEBUG_MODE" = "true" ]; then
             print_status "INFO" "Tenant list check #${check_count} (exit code: $list_exit_code):"
             echo "$tenant_list_output"

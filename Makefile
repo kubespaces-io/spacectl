@@ -20,7 +20,8 @@ build: ## Build the spacectl binary
 install: ## Install spacectl to $GOPATH/bin
 	go install -ldflags "$(LDFLAGS)"
 
-test: ## Run tests
+test: ## Run Go unit tests
+	@echo "Running unit tests"
 	go test -v ./...
 
 clean: ## Clean build artifacts
